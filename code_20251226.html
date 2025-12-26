@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>表白墙服务器 - 高并发防护监控</title>
+  <script src="https://cdn.jsdelivr.net/npm/echarts/dist/echarts.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/echarts/map/js/china.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { 
+      background: radial-gradient(ellipse at center, #111a2f 0%, #0a0e1a 100%); 
+      min-height: 100vh; 
+      display: flex; 
+      flex-direction: column; 
+      align-items: center; 
+      justify-content: center; 
+      padding: 3rem 1rem;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      overflow-x: hidden;
+      position: relative;
+    }
+    body::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: url('https://picsum.photos/id/1040/1920/1080') center/cover no-repeat;
+      opacity: 0.05;
+      z-index: -1;
+    }
+    /* 主标题+高并发标签组合 */
+    .title-wrap {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 0.8rem;
+    }
+    .title { 
+      font-size: 2.8rem; 
+      font-weight: 800; 
+      background: linear-gradient(90deg, #4cc9f0, #72efdd, #4cc9f0);
+      background-size: 200% 100%;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      animation: gradientMove 6s ease infinite;
+      letter-spacing: 1px;
+    }
+    .high-concurrency-tag {
+      padding: 0.4rem 1rem;
+      background: linear-gradient(90deg, #f72585, #b5179e);
+      border-radius: 50px;
+      color: #fff;
+      font-size: 1rem;
+      font-weight: 600;
+      box-shadow: 0 0 15px rgba(247, 37, 133, 0.4);
+      animation: pulseTag 2s ease-in-out infinite;
+    }
+    @keyframes pulseTag {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.05); }
+      100% { transform: scale(1); }
+    }
+    @keyframes gradientMove {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+    .subtitle { 
+      color: #a0aec0; 
+      font-size: 1.1rem; 
+      margin-bottom: 2.5rem; 
+      text-align: center;
+      letter-spacing: 0.5px;
+    }
+    .subtitle span {
+      color: #4cc9f0;
+      font-weight: 500;
+    }
+    #map { 
+      width: 90vw; 
+      height: 50vh; 
+      border-radius: 16px; 
+      box-shadow: 0 0 40px rgba(76, 201, 240, 0.15), inset 0 0 20px rgba(0, 0, 0, 0.3);
+      border: 1px solid rgba(76, 201, 240, 0.2);
+      background: rgba(10, 14, 26, 0.6);
+      position: relative;
+      overflow: hidden;
+    }
+    #map::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 300px;
+      height: 300px;
+      background: radial-gradient(circle, rgba(76, 201, 240, 0.3) 0%, transparent 70%);
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 0;
+      animation: pulse 4s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0% { opacity: 0.3; transform: translate(-50%, -50%) scale(1); }
+      50% { opacity: 0.6; transform: translate(-50%, -50%) scale(1.2); }
+      100% { opacity: 0.3; transform: translate(-50%, -50%) scale(1); }
+    }
+    #stats-chart {
+      width: 90vw;
+      height: 30vh;
+      margin-top: 2.5rem;
+      border-radius: 16px;
+      background: rgba(17, 26, 47, 0.5);
+      border: 1px solid rgba(76, 201, 240, 0.2);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+      backdrop-filter: blur(8px);
+      position: relative;
+      overflow: hidden;
+    }
+    #stats-chart::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 3px;
+      background: linear-gradient(90deg, #4cc9f0, #72efdd, #4cc9f0);
+      background-size: 200% 100%;
+      animation: lineMove 6s linear infinite;
+    }
+    @keyframes lineMove {
+      0% { background-position: 0% 50%; }
+      100% { background-position: 200% 50%; }
+    }
+  </style>
+</head>
+<body>
+  <div class="title-wrap">
+    <div class="title">表白墙服务器 - 海南海口节点</div>
+    <div class="high-concurrency-tag">高并发·攻击防护中</div>
+  </div>
+  <div class="subtitle">服务器部署于中国海南省海口市 | <span>当前QPS: 185 次/秒 · 防护状态: 正常</span></div>
+  <div id="map"></div>
+  <div id="stats-chart"></div>
+
+  <script>
+    // 地图：隐藏省份名，高亮海口
+    const mapChart = echarts.init(document.getElementById('map'));
+    const mapOption = {
+      tooltip: { show: false },
+      roamController: { show: false },
+      series: [{
+        name: '服务器位置',
+        type: 'map',
+        mapType: 'china',
+        roam: false,
+        zoom: 1.2,
+        label: { show: false },
+        emphasis: { label: { show: false }, itemStyle: { areaColor: '#2563eb' } },
+        itemStyle: { 
+          areaColor: 'rgba(30, 41, 59, 0.6)', 
+          borderColor: 'rgba(76, 201, 240, 0.3)',
+          borderWidth: 1
+        },
+        data: [{ name: '海南', value: 100 }],
+        markPoint: {
+          symbol: 'pin',
+          symbolSize: [55, 65],
+          itemStyle: { 
+            color: '#f72585',
+            shadowColor: '#f72585',
+            shadowBlur: 15,
+            shadowOffsetX: 0,
+            shadowOffsetY: 5
+          },
+          label: { 
+            show: true, 
+            color: '#fff', 
+            fontWeight: 'bold', 
+            fontSize: 13,
+            backgroundColor: 'transparent'
+          },
+          data: [{ name: '海口服务器', value: 1, coord: [110.3306, 20.0302] }]
+        }
+      }]
+    };
+    mapChart.setOption(mapOption);
+    window.addEventListener('resize', () => mapChart.resize());
+
+    // 动态条形图：荷载/带宽/请求量
+    const statsChart = echarts.init(document.getElementById('stats-chart'));
+    let loadVal = 28, bandwidthVal = 12.6, reqVal = 185;
+    const statsOption = {
+      tooltip: { show: false },
+      grid: { left: '10%', right: '15%', top: '30%', bottom: '20%' },
+      xAxis: { 
+        type: 'value', 
+        max: 100, 
+        axisLine: { lineStyle: { color: 'rgba(76, 201, 240, 0.3)' } }, 
+        axisTick: { show: false }, 
+        splitLine: { lineStyle: { color: 'rgba(255, 255, 255, 0.05)' } },
+        axisLabel: { color: '#a0aec0' }
+      },
+      yAxis: { 
+        type: 'category', 
+        data: ['服务器荷载(%)', '带宽占用(Mbps)', '实时请求量(次/秒)'], 
+        axisLine: { show: false }, 
+        axisTick: { show: false }, 
+        axisLabel: { color: '#e2e8f0', fontSize: 14 } 
+      },
+      series: [{
+        type: 'bar',
+        data: [loadVal, bandwidthVal, reqVal],
+        barWidth: 28,
+        itemStyle: {
+          color: params => {
+            const colors = ['#38bdf8', '#4cc9f0', '#72efdd'];
+            return new echarts.graphic.LinearGradient(0, 0, 1, 0, [
+              { offset: 0, color: colors[params.dataIndex] }, 
+              { offset: 1, color: 'rgba(76, 201, 240, 0.3)' }
+            ]);
+          },
+          borderRadius: [0, 8, 8, 0]
+        },
+        label: { 
+          show: true, 
+          position: 'right', 
+          color: '#e2e8f0', 
+          fontSize: 14, 
+          formatter: params => {
+            const units = ['%', 'Mbps', '次/秒'];
+            return params.value + units[params.dataIndex];
+          } 
+        }
+      }]
+    };
+    statsChart.setOption(statsOption);
+
+    // 动态波动更新
+    setInterval(() => {
+      loadVal = Math.max(25, Math.min(31, loadVal + (Math.random()-0.5)*2));
+      bandwidthVal = Math.max(10, Math.min(15, bandwidthVal + (Math.random()-0.5)*0.8));
+      reqVal = Math.max(170, Math.min(200, reqVal + Math.floor((Math.random()-0.5)*10)));
+      statsOption.series[0].data = [Math.round(loadVal), bandwidthVal.toFixed(1), reqVal];
+      statsChart.setOption(statsOption, true);
+    }, 1500);
+
+    window.addEventListener('resize', () => statsChart.resize());
+  </script>
+</body>
+</html>
